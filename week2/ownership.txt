@@ -10,7 +10,7 @@ fn main() {
 }
 ```
 
-
+Cannot modify s while it is currently being borrowed.
 
 Example 2:
 ```
@@ -20,7 +20,7 @@ fn drip_drop() -> &String {
 }
 ```
 
-
+Dangling reference.
 
 Example 3:
 ```
@@ -32,3 +32,5 @@ fn main() {
     println!("{}", s2);
 }
 ```
+
+Cannot move s1 out of the vec.
