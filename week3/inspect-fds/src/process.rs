@@ -10,9 +10,21 @@ pub struct Process {
 }
 
 impl Process {
-    #[allow(unused)] // TODO: delete this line for Milestone 1
     pub fn new(pid: usize, ppid: usize, command: String) -> Process {
         Process { pid, ppid, command }
+    }
+
+    pub fn print(&self) {
+        println!("========== \"{}\" (pid {}, ppid {}) ==========", self.command, self.pid, self.ppid);
+
+        match self.list_fds() {
+            Some(fds) => {
+                for fd in fds {
+                    println!("{}", fd);
+                }
+            },
+            None => {}
+        };
     }
 
     /// This function returns a list of file descriptor numbers for this Process, if that
@@ -20,10 +32,17 @@ impl Process {
     /// information will commonly be unavailable if the process has exited. (Zombie processes
     /// still have a pid, but their resources have already been freed, including the file
     /// descriptor table.)
-    #[allow(unused)] // TODO: delete this line for Milestone 3
     pub fn list_fds(&self) -> Option<Vec<usize>> {
-        // TODO: implement for Milestone 3
-        unimplemented!();
+        let mut fds = Vec::<usize>::new();
+        let path = format!("/proc/{}/fd", self.pid);
+        let entries = fs::read_dir(path).ok()?;
+        for entry in entries {
+            let entry = entry.ok()?;
+            let fd = entry.file_name().to_str()?.parse::<usize>().ok()?;
+            fds.push(fd);
+        }
+        fds.sort();
+        Some(fds)
     }
 
     /// This function returns a list of (fdnumber, OpenFile) tuples, if file descriptor
