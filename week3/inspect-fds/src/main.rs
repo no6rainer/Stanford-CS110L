@@ -16,9 +16,19 @@ fn main() {
     let found = ps_utils::get_target(target).expect("Failed to run ps or pgrep");
 
     match found {
-        Some(process) => process.print(),
+        Some(process) => {
+            process.print();
+            let children =
+                ps_utils::get_child_processes(process.pid).expect("Failed to get child processes");
+            for child in children {
+                child.print();
+            }
+        }
         None => {
-            eprintln!("Target \"{}\" did not match any running PIDs or executables", target);
+            eprintln!(
+                "Target \"{}\" did not match any running PIDs or executables",
+                target
+            );
             std::process::exit(1);
         }
     }
