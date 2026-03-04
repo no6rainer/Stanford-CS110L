@@ -10,8 +10,8 @@ Assignment handouts are available [here](https://reberhardt.com/cs110l/spring-20
 | - | - |
 | week1 | ✅ Completed |
 | week2 | ✅ Completed |
-| week3 | ⚠️ In Progress |
+| week3 | ✅ Completed |
 | week5 | ❌ Not started |
 | week6 | ❌ Not started |
-| proj-1 | ❌ Not started |
+| proj-1 | ⚠️ In Progress |
 | proj-2 | ❌ Not started |
