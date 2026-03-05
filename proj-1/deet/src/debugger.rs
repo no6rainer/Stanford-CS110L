@@ -32,29 +32,69 @@ impl Debugger {
         loop {
             match self.get_next_command() {
                 DebuggerCommand::Run(args) => {
+                    if let Some(mut inferior) = self.inferior.take() {
+                        println!("Killing running inferior (pid {})", inferior.pid());
+                        if let Err(e) = inferior.kill() {
+                            println!("Error killing inferior: {}", e);
+                        }
+                    }
+
                     if let Some(inferior) = Inferior::new(&self.target, &args) {
-                        // Create the inferior
-                        self.inferior = Some(inferior);
-                        let inf = self.inferior.as_mut().unwrap();
-                        let status = match inf.resume() {
+                        let status = match inferior.resume() {
                             Ok(status) => status,
                             Err(e) => {
-                                println!("{}", e);
+                                println!("Error continuing inferior: {}", e);
                                 continue;
                             }
                         };
-                        match status {
-                            Status::Stopped(signal, _) => println!("Child stopped by signal {}", signal),
-                            Status::Exited(exit_code) => println!("Child exited (status {})", exit_code),
-                            Status::Signaled(signal) => println!("Child terminated by signal {}", signal)
-                        }
+                        self.inferior = Some(inferior);
+                        self.handle_status(status);
                     } else {
                         println!("Error starting subprocess");
                     }
-                }
+                },
+
                 DebuggerCommand::Quit => {
+                    if let Some(mut inferior) = self.inferior.take() {
+                        println!("Killing running inferior (pid {})", inferior.pid());
+                        if let Err(e) = inferior.kill() {
+                            println!("Error killing inferior: {}", e);
+                        }
+                    }
                     return;
+                },
+
+                DebuggerCommand::Continue => {
+                    if let Some(inferior) = self.inferior.as_mut() {
+                        let status = match inferior.resume() {
+                            Ok(status) => status,
+                            Err(e) => {
+                                println!("Error continuing inferior: {}", e);
+                                self.inferior = None;
+                                continue;
+                            }
+                        };
+                        self.handle_status(status);
+                    } else {
+                        println!("No inferior is running");
+                    }
                 }
+            }
+        }
+    }
+
+    fn handle_status(&mut self, status: Status) {
+        match status {
+            Status::Stopped(signal, _) => {
+                println!("Child stopped (signal {})", signal);
+            },
+            Status::Exited(exit_code) => {
+                println!("Child exited (status {})", exit_code);
+                self.inferior = None;
+            },
+            Status::Signaled(signal) => {
+                println!("Child terminated (signal {})", signal);
+                self.inferior = None;
             }
         }
     }

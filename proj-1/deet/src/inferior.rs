@@ -1,6 +1,7 @@
 use nix::sys::ptrace;
 use nix::sys::signal;
-use nix::sys::signal::Signal::SIGTRAP;
+use nix::sys::signal::kill;
+use nix::sys::signal::Signal::{SIGKILL, SIGTRAP};
 use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
 use nix::unistd::Pid;
 use std::process::Child;
@@ -70,6 +71,11 @@ impl Inferior {
 
     pub fn resume(&self) -> Result<Status, nix::Error> {
         ptrace::cont(self.pid(), None)?;
+        self.wait(None)
+    }
+
+    pub fn kill(&mut self) -> Result<Status, nix::Error> {
+        kill(self.pid(), SIGKILL)?;
         self.wait(None)
     }
 }
