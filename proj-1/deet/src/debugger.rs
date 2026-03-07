@@ -108,8 +108,19 @@ impl Debugger {
 
     fn handle_status(&mut self, status: Status) {
         match status {
-            Status::Stopped(signal, _) => {
+            Status::Stopped(signal, rip) => {
                 println!("Child stopped (signal {})", signal);
+                let line_opt = self.debug_data.get_line_from_addr(rip);
+                let line_desc = match line_opt {
+                    Some(line) => line.to_string(),
+                    None => "<unknown>".to_string(),
+                };
+                let func_opt = self.debug_data.get_function_from_addr(rip);
+                let func_name = match func_opt {
+                    Some(name) => name,
+                    None => "<unknown>".to_string(),
+                };
+                println!("Stopped at {} ({})", func_name, line_desc);
             },
             Status::Exited(exit_code) => {
                 println!("Child exited (status {})", exit_code);
