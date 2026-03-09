@@ -9,7 +9,17 @@ pub struct Debugger {
     history_path: String,
     readline: Editor<()>,
     inferior: Option<Inferior>,
-    debug_data: DwarfData
+    debug_data: DwarfData,
+    breakpoints: Vec<usize>
+}
+
+fn parse_address(addr: &str) -> Option<usize> {
+    let addr_without_0x = if addr.to_lowercase().starts_with("0x") {
+        &addr[2..]
+    } else {
+        &addr
+    };
+    usize::from_str_radix(addr_without_0x, 16).ok()
 }
 
 impl Debugger {
@@ -37,7 +47,8 @@ impl Debugger {
             history_path,
             readline,
             inferior: None,
-            debug_data
+            debug_data,
+            breakpoints: Vec::new(),
         }
     }
 
@@ -52,7 +63,7 @@ impl Debugger {
                         }
                     }
 
-                    if let Some(inferior) = Inferior::new(&self.target, &args) {
+                    if let Some(inferior) = Inferior::new(&self.target, &args, &self.breakpoints) {
                         let status = match inferior.resume() {
                             Ok(status) => status,
                             Err(e) => {
@@ -100,6 +111,24 @@ impl Debugger {
                         }
                     } else {
                         println!("No inferior is running");
+                    }
+                },
+
+                DebuggerCommand::Break(addr) => {
+                    if addr.starts_with('*') {
+                        match parse_address(&addr[1..]) {
+                            Some(breakpoint) => {
+                                let idx = self.breakpoints.len();
+                                self.breakpoints.push(breakpoint);
+                                if let Some(inferior) = &mut self.inferior {
+                                    _ = inferior.install_breakpoint(breakpoint);
+                                }
+                                println!("Set breakpoint {} at {:#x}", idx, breakpoint);
+                            },
+                            None => println!("Invalid address: {}", addr)
+                        };
+                    } else {
+                        println!("Invalid input!");
                     }
                 }
             }
