@@ -63,7 +63,7 @@ impl Debugger {
                         }
                     }
 
-                    if let Some(inferior) = Inferior::new(&self.target, &args, &self.breakpoints) {
+                    if let Some(mut inferior) = Inferior::new(&self.target, &args, &self.breakpoints) {
                         let status = match inferior.resume() {
                             Ok(status) => status,
                             Err(e) => {
@@ -120,8 +120,12 @@ impl Debugger {
                             Some(breakpoint) => {
                                 let idx = self.breakpoints.len();
                                 self.breakpoints.push(breakpoint);
+
+                                // If the inferior is running, install breakpoints immediately
                                 if let Some(inferior) = &mut self.inferior {
-                                    _ = inferior.install_breakpoint(breakpoint);
+                                    if let Err(e) = inferior.install_breakpoint(breakpoint) {
+                                        println!("Error setting breakpoint: {}", e);
+                                    }
                                 }
                                 println!("Set breakpoint {} at {:#x}", idx, breakpoint);
                             },

@@ -8,6 +8,7 @@ use std::process::Child;
 use std::process::Command;
 use std::os::unix::process::CommandExt;
 use std::mem::size_of;
+use std::collections::HashMap;
 
 use crate::dwarf_data::DwarfData;
 
@@ -39,6 +40,13 @@ fn align_addr_to_word(addr: usize) -> usize {
 
 pub struct Inferior {
     child: Child,
+    breakpoints: HashMap<usize, Breakpoint>
+}
+
+#[derive(Clone)]
+struct Breakpoint {
+    addr: usize,
+    orig_byte: u8
 }
 
 impl Inferior {
@@ -49,12 +57,14 @@ impl Inferior {
         cmd.args(args);
         unsafe { cmd.pre_exec(child_traceme); }
         let child = cmd.spawn().ok()?;
-        let mut inf = Inferior { child };
+        let mut inf = Inferior { child, breakpoints: HashMap::new() };
         let status = inf.wait(None).ok()?;
         match status {
             Status::Stopped(SIGTRAP, _) => {
                 for bp in breakpoints {
-                    _ = inf.install_breakpoint(*bp);
+                    if let Err(e) = inf.install_breakpoint(*bp) {
+                        println!("Error setting breakpoint: {}", e);
+                    }
                 }
                 Some(inf)
             },
@@ -81,9 +91,38 @@ impl Inferior {
         })
     }
 
-    pub fn resume(&self) -> Result<Status, nix::Error> {
+    pub fn resume(&mut self) -> Result<Status, nix::Error> {
+        let regs = ptrace::getregs(self.pid())?;
+        let rip = regs.rip as usize;
+        if self.breakpoints.contains_key(&rip) {
+            ptrace::step(self.pid(), None)?;
+            let status = self.wait(None)?;
+            match status {
+                Status::Stopped(SIGTRAP, _) => {
+                    if let Err(e) = self.install_breakpoint(rip) {
+                        println!("Error setting breakpoint: {}", e);
+                    }
+                },
+                other => return Ok(other)
+            }
+        }
         ptrace::cont(self.pid(), None)?;
-        self.wait(None)
+        let status = self.wait(None)?;
+        match status {
+            Status::Stopped(SIGTRAP, _) => {
+                let mut regs = ptrace::getregs(self.pid())?;
+                let rip = regs.rip as usize;
+                if self.breakpoints.contains_key(&(rip - 1)) {
+                    if let Err(e) = self.restore_breakpoint(rip - 1) {
+                        println!("Error restoring breakpoint: {}", e);
+                    }
+                    regs.rip = regs.rip - 1;
+                    ptrace::setregs(self.pid(), regs)?;
+                }
+            },
+            _ => ()
+        }
+        Ok(status)
     }
 
     pub fn kill(&mut self) -> Result<Status, nix::Error> {
@@ -116,8 +155,17 @@ impl Inferior {
         Ok(())
     }
 
-    pub fn install_breakpoint(&mut self, addr: usize) -> Result<u8, nix::Error> {
-        self.write_byte(addr, 0xcc)
+    pub fn install_breakpoint(&mut self, addr: usize) -> Result<(), nix::Error> {
+        let orig_byte = self.write_byte(addr, 0xcc)?;
+        let breakpoint = Breakpoint { addr, orig_byte };
+        self.breakpoints.insert(addr, breakpoint);
+        Ok(())
+    }
+
+    fn restore_breakpoint(&mut self, addr: usize) -> Result<(), nix::Error> {
+        let orig_byte = self.breakpoints[&addr].orig_byte;
+        self.write_byte(addr, orig_byte)?;
+        Ok(())
     }
 
     fn write_byte(&mut self, addr: usize, val: u8) -> Result<u8, nix::Error> {
