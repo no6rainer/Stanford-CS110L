@@ -114,25 +114,37 @@ impl Debugger {
                     }
                 },
 
-                DebuggerCommand::Break(addr) => {
-                    if addr.starts_with('*') {
-                        match parse_address(&addr[1..]) {
-                            Some(breakpoint) => {
-                                let idx = self.breakpoints.len();
-                                self.breakpoints.push(breakpoint);
-
-                                // If the inferior is running, install breakpoints immediately
-                                if let Some(inferior) = &mut self.inferior {
-                                    if let Err(e) = inferior.install_breakpoint(breakpoint) {
-                                        println!("Error setting breakpoint: {}", e);
-                                    }
-                                }
-                                println!("Set breakpoint {} at {:#x}", idx, breakpoint);
-                            },
-                            None => println!("Invalid address: {}", addr)
+                DebuggerCommand::Break(target) => {
+                    let mut resolved_addr: Option<usize> = None;
+                    
+                    if target.starts_with('*') {
+                        let addr_str = &target[1..];
+                        match parse_address(addr_str) {
+                            Some(addr) => resolved_addr = Some(addr),
+                            None => println!("Invalid address: {}", addr_str)
                         };
+                    } else if let Ok(line_number) = target.parse::<usize>() {
+                        match self.debug_data.get_addr_for_line(None, line_number) {
+                            Some(addr) => resolved_addr = Some(addr),
+                            None => println!("Invalid line number!")
+                        }
+                    } else if let Some(addr) = self.debug_data.get_addr_for_function(None, &target) {
+                        resolved_addr = Some(addr);
                     } else {
-                        println!("Invalid input!");
+                        println!("Could not parse breakpoint target: {}", target);
+                    }
+
+                    if let Some(breakpoint) = resolved_addr {
+                        let idx = self.breakpoints.len();
+                        self.breakpoints.push(breakpoint);
+
+                        // If the inferior is running, install breakpoints immediately
+                        if let Some(inferior) = &mut self.inferior {
+                            if let Err(e) = inferior.install_breakpoint(breakpoint) {
+                                println!("Error setting breakpoint: {}", e);
+                            }
+                        }
+                        println!("Set breakpoint {} at {:#x}", idx, breakpoint);
                     }
                 }
             }

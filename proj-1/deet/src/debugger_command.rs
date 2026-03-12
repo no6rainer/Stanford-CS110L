@@ -18,7 +18,7 @@ impl DebuggerCommand {
             },
             "c" | "cont" | "continue" => Some(DebuggerCommand::Continue),
             "bt" | "back" | "backtrace" => Some(DebuggerCommand::Backtrace),
-            "b" | "break" => {
+            "b" | "break" | "breakpoint" => {
                 let addr = tokens.get(1)?;
                 Some(DebuggerCommand::Break(addr.to_string()))
             }

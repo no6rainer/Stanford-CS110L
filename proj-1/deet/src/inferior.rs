@@ -163,8 +163,8 @@ impl Inferior {
     }
 
     fn restore_breakpoint(&mut self, addr: usize) -> Result<(), nix::Error> {
-        let orig_byte = self.breakpoints[&addr].orig_byte;
-        self.write_byte(addr, orig_byte)?;
+        let breakpoint = &self.breakpoints[&addr];
+        self.write_byte(breakpoint.addr, breakpoint.orig_byte)?;
         Ok(())
     }
 
